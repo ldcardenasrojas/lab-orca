@@ -1,38 +1,42 @@
 name: Laboratorio Orca Shift Left
 
-on: [push]
+on: 
+  push:
+    branches: [ "main" ] # Se dispara al subir código al branch main
 
 jobs:
   orca-scan:
     runs-on: ubuntu-latest
     env:
-      PROJECT_KEY: "lab-principiante" # Agrupa los hallazgos en Orca
+      PROJECT_KEY: "lab-principiante"
+      # Definición de la etiqueta de la imagen con tu usuario de Docker Hub
+      IMAGE_TAG: ${{ secrets.DOCKER_USERNAME }}/lab-orca:latest 
 
     steps:
       - name: Bajar el código
         uses: actions/checkout@v3
 
-      # Escaneo del código (IaC, Secretos, SAST, SCA)
+      # --- Escaneo de Archivos (Shift Left IaC, Secrets, SAST, SCA) ---
       - name: Escaneo de Código Orca
-        uses: orca-security/shiftleft-orca-action@v1
+        uses: orca-security/shiftleft-orca-action@v3 # ¡Corregido a @v3!
         with:
           api_token: ${{ secrets.ORCA_SECURITY_API_TOKEN }}
           project_key: ${{ env.PROJECT_KEY }}
           path: "."
 
-      # Construir la imagen Docker
+      # --- Container Image Scan (Preparación) ---
       - name: Build Docker
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/lab-orca:latest .
+        # La imagen se construye con la etiqueta de tu repositorio de Docker Hub
+        run: docker build -t ${{ env.IMAGE_TAG }} .
 
-      # Escaneo de la Imagen (Container Scanning)
       - name: Escaneo de Imagen Orca
-        uses: orca-security/shiftleft-orca-action@v1
+        uses: orca-security/shiftleft-orca-action@v3 # ¡Corregido a @v3!
         with:
           api_token: ${{ secrets.ORCA_SECURITY_API_TOKEN }}
           project_key: ${{ env.PROJECT_KEY }}
-          image: "${{ secrets.DOCKER_USERNAME }}/lab-orca:latest"
+          image: ${{ env.IMAGE_TAG }}
 
-      # (Opcional) Subir a Docker Hub para simular "Cloud to Dev"
+      # --- Cloud to Dev (Opcional - Subida a Docker Hub) ---
       - name: Login en Docker Hub
         uses: docker/login-action@v2
         with:
@@ -40,4 +44,4 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       
       - name: Push a Docker Hub
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/lab-orca:latest
+        run: docker push ${{ env.IMAGE_TAG }}
