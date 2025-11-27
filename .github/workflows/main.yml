@@ -2,14 +2,13 @@ name: Laboratorio Orca Shift Left
 
 on: 
   push:
-    branches: [ "main" ] # Se dispara al subir código al branch main
+    branches: [ "main" ]
 
 jobs:
   orca-scan:
     runs-on: ubuntu-latest
     env:
       PROJECT_KEY: "lab-principiante"
-      # Definición de la etiqueta de la imagen con tu usuario de Docker Hub
       IMAGE_TAG: ${{ secrets.DOCKER_USERNAME }}/lab-orca:latest 
 
     steps:
@@ -18,7 +17,7 @@ jobs:
 
       # --- Escaneo de Archivos (Shift Left IaC, Secrets, SAST, SCA) ---
       - name: Escaneo de Código Orca
-        uses: orca-security/shiftleft-orca-action@v3 # ¡Corregido a @v3!
+        uses: orca-security/shiftleft-orca-action@main # ¡CAMBIO A @main!
         with:
           api_token: ${{ secrets.ORCA_SECURITY_API_TOKEN }}
           project_key: ${{ env.PROJECT_KEY }}
@@ -26,11 +25,10 @@ jobs:
 
       # --- Container Image Scan (Preparación) ---
       - name: Build Docker
-        # La imagen se construye con la etiqueta de tu repositorio de Docker Hub
         run: docker build -t ${{ env.IMAGE_TAG }} .
 
       - name: Escaneo de Imagen Orca
-        uses: orca-security/shiftleft-orca-action@v3 # ¡Corregido a @v3!
+        uses: orca-security/shiftleft-orca-action@main # ¡CAMBIO A @main!
         with:
           api_token: ${{ secrets.ORCA_SECURITY_API_TOKEN }}
           project_key: ${{ env.PROJECT_KEY }}
