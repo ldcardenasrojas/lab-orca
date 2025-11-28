@@ -1,33 +1,43 @@
 name: Laboratorio Orca Shift Left
 
-on: 
+on:
   push:
     branches: [ "main" ]
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   orca-scan:
     runs-on: ubuntu-latest
     env:
       PROJECT_KEY: "lab-principiante"
-      # IMAGE_TAG is set dynamically in steps below so the workflow
-      # remains safe when the secret is not available (e.g. forks).
+    permissions:
+      contents: read
 
     steps:
-      - name: Bajar el código
+      - name: Checkout
         uses: actions/checkout@v3
 
-      # Define IMAGE_TAG from secret if available, otherwise use a safe fallback
-      - name: Set IMAGE_TAG from secret (if available)
-        if: ${{ secrets.DOCKER_USERNAME != '' && (github.event_name != 'pull_request' || github.repository == github.event.pull_request.head.repo.full_name) }}
-        run: echo "IMAGE_TAG=${{ secrets.DOCKER_USERNAME }}/lab-orca:latest" >> $GITHUB_ENV
+      - name: Configure IMAGE_TAG (secret-safe)
+        shell: bash
+        run: |
+          # Decide IMAGE_TAG at runtime. Do NOT set it at job-level from secrets.
+          # Use DOCKER_USERNAME secret only when available and when this is not a forked PR.
+          if [ -n "${{ secrets.DOCKER_USERNAME }}" ] && { [ "${{ github.event_name }}" != "pull_request" ] || [ "${{ github.repository }}" = "${{ github.event.pull_request.head.repo.full_name }}" ]; }; then
+            echo "Using DOCKER_USERNAME from secrets for IMAGE_TAG"
+            echo "IMAGE_TAG=${{ secrets.DOCKER_USERNAME }}/lab-orca:latest" >> $GITHUB_ENV
+          else
+            echo "DOCKER_USERNAME not available or running for a forked PR — using fallback IMAGE_TAG"
+            echo "IMAGE_TAG=local-dev/lab-orca:latest" >> $GITHUB_ENV
+          fi
 
-      - name: Set IMAGE_TAG fallback (no secret)
-        if: ${{ secrets.DOCKER_USERNAME == '' }}
-        run: echo "IMAGE_TAG=local-dev/lab-orca:latest" >> $GITHUB_ENV
+      - name: Show IMAGE_TAG (non-secret)
+        run: |
+          echo "IMAGE_TAG is set to: $IMAGE_TAG"
 
       # --- Escaneo de Archivos (Shift Left IaC, Secrets, SAST, SCA) ---
       - name: Escaneo de Código Orca
-        uses: orca-security/shiftleft-orca-action@main # ¡CAMBIO A @main!
+        uses: orca-security/shiftleft-orca-action@main
         with:
           api_token: ${{ secrets.ORCA_SECURITY_API_TOKEN }}
           project_key: ${{ env.PROJECT_KEY }}
@@ -35,14 +45,14 @@ jobs:
 
       # --- Container Image Scan (Preparación) ---
       - name: Build Docker
-        run: docker build -t $IMAGE_TAG .
+        run: docker build -t "$IMAGE_TAG" .
 
       - name: Escaneo de Imagen Orca
-        uses: orca-security/shiftleft-orca-action@main # ¡CAMBIO A @main!
+        uses: orca-security/shiftleft-orca-action@main
         with:
           api_token: ${{ secrets.ORCA_SECURITY_API_TOKEN }}
           project_key: ${{ env.PROJECT_KEY }}
-          image: ${{ env.IMAGE_TAG }}
+          image: $IMAGE_TAG
 
       # --- Cloud to Dev (Opcional - Subida a Docker Hub) ---
       - name: Login en Docker Hub
@@ -54,4 +64,4 @@ jobs:
 
       - name: Push a Docker Hub
         if: ${{ secrets.DOCKER_USERNAME != '' && (github.event_name != 'pull_request' || github.repository == github.event.pull_request.head.repo.full_name) }}
-        run: docker push ${{ env.IMAGE_TAG }}
+        run: docker push "$IMAGE_TAG"
