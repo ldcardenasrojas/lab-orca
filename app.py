@@ -4,7 +4,7 @@ from flask import Flask, request
 app = Flask(__name__)
 
 # ERROR: Dejamos una clave de AWS escrita en el código (Secret Detection)
-AWS_KEY = "AKIA1234567890EXAMPLE"
+AWS_KEY = "AKIA12345678903X4MPL3"
 
 @app.route('/login', methods=['POST'])
 def login():
