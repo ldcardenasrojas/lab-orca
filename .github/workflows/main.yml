@@ -9,11 +9,21 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PROJECT_KEY: "lab-principiante"
-      IMAGE_TAG: ${{ secrets.DOCKER_USERNAME }}/lab-orca:latest 
+      # IMAGE_TAG is set dynamically in steps below so the workflow
+      # remains safe when the secret is not available (e.g. forks).
 
     steps:
       - name: Bajar el código
         uses: actions/checkout@v3
+
+      # Define IMAGE_TAG from secret if available, otherwise use a safe fallback
+      - name: Set IMAGE_TAG from secret (if available)
+        if: ${{ secrets.DOCKER_USERNAME != '' }}
+        run: echo "IMAGE_TAG=${{ secrets.DOCKER_USERNAME }}/lab-orca:latest" >> $GITHUB_ENV
+
+      - name: Set IMAGE_TAG fallback (no secret)
+        if: ${{ secrets.DOCKER_USERNAME == '' }}
+        run: echo "IMAGE_TAG=local-dev/lab-orca:latest" >> $GITHUB_ENV
 
       # --- Escaneo de Archivos (Shift Left IaC, Secrets, SAST, SCA) ---
       - name: Escaneo de Código Orca
@@ -25,7 +35,7 @@ jobs:
 
       # --- Container Image Scan (Preparación) ---
       - name: Build Docker
-        run: docker build -t ${{ env.IMAGE_TAG }} .
+        run: docker build -t $IMAGE_TAG .
 
       - name: Escaneo de Imagen Orca
         uses: orca-security/shiftleft-orca-action@main # ¡CAMBIO A @main!
@@ -36,10 +46,12 @@ jobs:
 
       # --- Cloud to Dev (Opcional - Subida a Docker Hub) ---
       - name: Login en Docker Hub
+        if: ${{ secrets.DOCKER_USERNAME != '' }}
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      
+
       - name: Push a Docker Hub
+        if: ${{ secrets.DOCKER_USERNAME != '' }}
         run: docker push ${{ env.IMAGE_TAG }}
